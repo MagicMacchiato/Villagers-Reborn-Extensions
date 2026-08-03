@@ -14,6 +14,7 @@ group = mod_group_id
 
 repositories {
     maven { url = "https://maven.ithundxr.dev/snapshots" } // Registrate
+    maven {url = file("dependencies/Villagers-Reborn")}
 }
 
 base {
@@ -75,6 +76,8 @@ configurations {
 
 dependencies {
     implementation("com.tterrag.registrate:Registrate:${registrate_version}")
+    compileOnly("com.javic.slimpatch:villagersreborn:1.0.7")
+    localRuntime("com.javic.slimpatch:villagersreborn:1.0.7")
 }
 
 

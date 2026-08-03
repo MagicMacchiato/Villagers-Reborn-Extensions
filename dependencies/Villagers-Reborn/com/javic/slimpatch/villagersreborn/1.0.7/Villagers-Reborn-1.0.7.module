@@ -1,0 +1,60 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.javic.slimpatch",
+    "module": "Villagers-Reborn",
+    "version": "1.0.7",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.14.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "Villagers-Reborn-1.0.7.jar",
+          "url": "Villagers-Reborn-1.0.7.jar",
+          "size": 10106764,
+          "sha512": "215dbd2e3f246908e73c69e9f6eda35fd4be844f96f4c5032a432fdfc4f4f3ffa1374ea617c12728f37c504c5d0146a06ab9a724a6ed33081339249afbae84ea",
+          "sha256": "f16f6b72fe58646efb744f84799495b951d2d8496e709fdc396f16ab7e12c077",
+          "sha1": "c2fc2c0ea7305abd19a772ef7288270b5e14fddf",
+          "md5": "5591c6e49f5428d098eabbf92cbf415d"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "Villagers-Reborn-1.0.7.jar",
+          "url": "Villagers-Reborn-1.0.7.jar",
+          "size": 10106764,
+          "sha512": "215dbd2e3f246908e73c69e9f6eda35fd4be844f96f4c5032a432fdfc4f4f3ffa1374ea617c12728f37c504c5d0146a06ab9a724a6ed33081339249afbae84ea",
+          "sha256": "f16f6b72fe58646efb744f84799495b951d2d8496e709fdc396f16ab7e12c077",
+          "sha1": "c2fc2c0ea7305abd19a772ef7288270b5e14fddf",
+          "md5": "5591c6e49f5428d098eabbf92cbf415d"
+        }
+      ]
+    }
+  ]
+}
