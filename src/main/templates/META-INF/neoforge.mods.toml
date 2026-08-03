@@ -29,3 +29,11 @@ description='''${mod_description}'''
     ordering="NONE"
     side="BOTH"
 
+[[dependencies.${mod_id}]]
+    # Villagers Reborn mod
+    modId="slimpatch"
+    type="required"
+    versionRange="1.0.7"
+    ordering="NONE"
+    side="BOTH"
+
