@@ -1,4 +1,4 @@
-package com.vrextensions.magicmacchiato;
+package com.magicmacchiato.vrextensions;
 
 import java.util.List;
 
