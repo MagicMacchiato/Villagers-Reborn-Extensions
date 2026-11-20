@@ -1,5 +1,7 @@
-package com.vrextensions.magicmacchiato;
+package com.magicmacchiato.vrextensions;
 
+import com.magicmacchiato.vrextensions.Network.ModNetwork;
+import com.magicmacchiato.vrextensions.Utils.DialogueManager;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -23,6 +25,7 @@ public class VillagersRebornExtensionsMod {
 
     public VillagersRebornExtensionsMod(IEventBus modEventBus, ModContainer modContainer) {
         modEventBus.addListener(this::commonSetup);
+        ModNetwork.register(modEventBus);
         NeoForge.EVENT_BUS.register(this);
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
@@ -30,6 +33,7 @@ public class VillagersRebornExtensionsMod {
 
     private void commonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("HELLO FROM COMMON SETUP");
+        DialogueManager.loadAll();
     }
 
 

@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.magicmacchiato.vrextensions.Mixins",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "VillagerEntityMixin"
+  ],
+  "client": [
+    "VillagerDialogueScreenMixin",
+    "DialogueOptionMixin"
+  ]
+}
