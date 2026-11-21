@@ -8,6 +8,7 @@ import com.magicmacchiato.vrextensions.Dialogue.DialogueNode;
 import com.magicmacchiato.vrextensions.Enums.Speaker;
 import com.magicmacchiato.vrextensions.Features.Mood;
 import com.magicmacchiato.vrextensions.Features.MoodHolder;
+import com.magicmacchiato.vrextensions.Features.MoodSync;
 import com.magicmacchiato.vrextensions.Utils.ConversationManager;
 import com.magicmacchiato.vrextensions.Utils.Requirements;
 
@@ -63,8 +64,8 @@ public record ChooseDialoguePacket(int entityId, String nodeId) implements Custo
             if (personality != null && villager instanceof MoodHolder holder) {
                 float reaction = Mood.reaction(personality, node.semantic());
                 holder.getVrMood().applyReaction(reaction);
-                LOGGER.info("{} chose {} -> {} reaction {}, positiveness now {}", player.getName().getString(),
-                        node.id(), personality, reaction, holder.getVrMood().getPositiveness());
+                holder.getVrMood().logState(villager.getUUID());
+                MoodSync.send(player, villager);
             }
 
             // Mood has just changed, so evaluate the reply's requirements afterwards.

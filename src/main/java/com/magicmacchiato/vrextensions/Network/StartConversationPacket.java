@@ -2,6 +2,7 @@ package com.magicmacchiato.vrextensions.Network;
 
 import com.javic.slimpatch.dialogue.DialogueManager;
 import com.magicmacchiato.vrextensions.Dialogue.DialogueNode;
+import com.magicmacchiato.vrextensions.Features.MoodSync;
 import com.magicmacchiato.vrextensions.Utils.ConversationManager;
 import com.magicmacchiato.vrextensions.Utils.Requirements;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -38,6 +39,7 @@ public record StartConversationPacket(int entityId) implements CustomPacketPaylo
             if (player.distanceToSqr(villager) > MAX_DISTANCE_SQR) return;
             if (!player.getUUID().equals(DialogueManager.getDialoguePlayer(villager))) return;
 
+            MoodSync.send(player, villager);
             var allowed = Requirements.forPair(villager, player);
             DialogueNode opener = com.magicmacchiato.vrextensions.Utils.DialogueManager.randomOpener(allowed);
             if (opener == null) return;

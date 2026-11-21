@@ -1,0 +1,10 @@
+{
+  "FRIENDLY": { "friendly":  0.8, "mean": -0.6, "flirt":  0.2, "joke":  0.5 },
+  "MEAN":     { "friendly": -0.5, "mean":  0.6, "flirt": -0.4, "joke": -0.2 },
+  "SHY":      { "friendly":  0.5, "mean": -0.5, "flirt": -0.6, "joke":  0.2 },
+  "BRAVE":    { "friendly":  0.4, "mean":  0.2, "flirt":  0.4, "joke":  0.3 },
+  "GRUMPY":   { "friendly": -0.5, "mean":  0.5, "flirt": -0.5, "joke": -0.6 },
+  "GREEDY":   { "friendly":  0.0, "mean": -0.3, "flirt":  0.3, "joke":  0.0 },
+  "ROMANTIC": { "friendly":  0.4, "mean": -0.7, "flirt":  0.9, "joke":  0.4 },
+  "WISE":     { "friendly":  0.5, "mean": -0.6, "flirt": -0.2, "joke":  0.3 }
+}

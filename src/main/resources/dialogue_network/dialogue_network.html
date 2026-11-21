@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dialogue Network</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #667085; --line: #c3c9d4;
+    --villager: #3b82f6; --villager-bg: #dbeafe; --player: #16a34a; --player-bg: #dcfce7;
+    --hl: #f59e0b; --border: #d6dbe4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1c212b; --text: #e6e9ef; --muted: #9aa3b2; --line: #4a5365;
+      --villager: #60a5fa; --villager-bg: #1e3a5f; --player: #4ade80; --player-bg: #14532d;
+      --hl: #fbbf24; --border: #323a49;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; display: flex; flex-direction: column; }
+  header { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  h1 { font-size: 16px; margin: 0; }
+  .legend { display: flex; gap: 12px; align-items: center; color: var(--muted); font-size: 13px; }
+  .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; border: 2px solid; }
+  .sw-v { background: var(--villager-bg); border-color: var(--villager); }
+  .sw-p { background: var(--player-bg); border-color: var(--player); }
+  .sw-m { background: var(--panel); border: 2px dashed var(--muted); }
+  input[type=search] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); min-width: 200px; }
+  button, label.btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); cursor: pointer; font: inherit; }
+  button:hover, label.btn:hover { border-color: var(--muted); }
+  #status { color: var(--muted); font-size: 13px; margin-left: auto; }
+  main { position: relative; flex: 1; min-height: 0; }
+  svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+  svg.panning { cursor: grabbing; }
+  .edge { fill: none; stroke: var(--line); stroke-width: 1.3; opacity: .7; }
+  .edge.hl { stroke: var(--hl); stroke-width: 2.4; opacity: 1; }
+  .dim { opacity: .12; }
+  .node rect { stroke-width: 2; rx: 7; }
+  .node.villager rect { fill: var(--villager-bg); stroke: var(--villager); }
+  .node.player rect { fill: var(--player-bg); stroke: var(--player); }
+  .node.mood rect { stroke-dasharray: 5 3; }
+  .node.hl rect { stroke: var(--hl); stroke-width: 3; }
+  .node.match rect { stroke: var(--hl); stroke-width: 3.5; }
+  .node text { fill: var(--text); font-size: 11.5px; pointer-events: none; }
+  .colhead { fill: var(--muted); font-size: 12px; font-weight: 600; }
+  #tip { position: fixed; z-index: 10; max-width: 380px; padding: 12px 14px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.25); pointer-events: none; display: none; }
+  #tip h2 { font-size: 13px; margin: 0 0 2px; word-break: break-all; }
+  #tip .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 99px; margin-bottom: 8px; color: #fff; }
+  #tip .tag.villager { background: var(--villager); } #tip .tag.player { background: var(--player); }
+  #tip .quote { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--line); background: var(--bg); border-radius: 0 6px 6px 0; }
+  #tip dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12.5px; }
+  #tip dt { color: var(--muted); }
+  #tip dd { margin: 0; word-break: break-word; }
+  .bar { display: flex; align-items: center; gap: 6px; }
+  .bar i { display: block; height: 6px; border-radius: 3px; background: var(--hl); }
+  #drop { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; color: var(--muted); padding: 24px; }
+  #drop.show { display: flex; }
+  #drop.over { background: rgba(120,120,120,.12); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Dialogue Network</h1>
+  <div class="legend">
+    <span><span class="swatch sw-v"></span>Villager</span>
+    <span><span class="swatch sw-p"></span>Player</span>
+    <span><span class="swatch sw-m"></span>Has mood requirement</span>
+  </div>
+  <input id="search" type="search" placeholder="Search id or text…" aria-label="Search nodes">
+  <label class="btn">Load JSON…<input id="file" type="file" accept=".json,application/json" multiple hidden></label>
+  <button id="folder" type="button">Open folder…</button>
+  <button id="fit" type="button">Fit view</button>
+  <span id="status"></span>
+</header>
+<main id="main">
+  <svg id="svg" role="img" aria-label="Dialogue graph"><g id="viewport"></g></svg>
+  <div id="drop">
+    <div>
+      <strong>No dialogue data loaded.</strong><br>
+      Browsers block reading local files from a page opened as <code>file://</code>.<br>
+      Click <em>Open folder…</em> and pick the dialogues folder, or <em>Load JSON…</em> (or drop files here), pick the files in<br>
+      <code>assets/vrextensions/dialogues/</code>, or serve this folder, e.g.<br>
+      <code>python3 -m http.server</code> in <code>src/main/resources</code>, then open<br>
+      <code>/dialogue_network/dialogue_network.html</code>.
+    </div>
+  </div>
+</main>
+<div id="tip" role="tooltip"></div>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const DIALOGUE_DIR = '../assets/vrextensions/dialogues/';
+  const DEFAULT_FILES = [DIALOGUE_DIR + 'farming_dialogues.json'];   // fallback if the server gives no directory index
+  const NODE_W = 170, NODE_H = 30, COL_GAP = 90, ROW_GAP = 14;
+
+  const svg = document.getElementById('svg');
+  const viewport = document.getElementById('viewport');
+  const tip = document.getElementById('tip');
+  const statusEl = document.getElementById('status');
+  const dropEl = document.getElementById('drop');
+
+  let nodes = new Map();          // id -> node data
+  let layout = new Map();         // id -> {x, y, depth}
+  let incoming = new Map();       // id -> [ids]
+  let view = { x: 0, y: 0, k: 1 };
+  let elNode = new Map(), edgeEls = [];
+
+  const short = id => id.replace(/^[^:]+:/, '');
+  const el = (name, attrs = {}, parent) => {
+    const e = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+
+  /* ---------- loading ---------- */
+  // Lists every *.json in the dialogues folder by parsing the directory index
+  // that a static server (python -m http.server, Gradle/IDE dev servers) returns.
+  async function listDialogueFiles() {
+    try {
+      const r = await fetch(DIALOGUE_DIR);
+      if (!r.ok) return [];
+      const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+      const names = [...doc.querySelectorAll('a[href]')]
+        .map(a => decodeURIComponent(a.getAttribute('href').split(/[?#]/)[0]))
+        .filter(h => h.toLowerCase().endsWith('.json'))
+        .map(h => h.split('/').pop());
+      return [...new Set(names)].sort();
+    } catch (_) { return []; }
+  }
+
+  async function loadDefaults() {
+    const merged = {};
+    const found = await listDialogueFiles();
+    const files = found.length ? found.map(n => DIALOGUE_DIR + encodeURIComponent(n)) : DEFAULT_FILES;
+    let loaded = 0;
+    for (const f of files) {
+      try {
+        const r = await fetch(f);
+        if (r.ok) { Object.assign(merged, await r.json()); loaded++; }
+      } catch (_) { /* file:// or missing */ }
+    }
+    if (loaded) { setData(merged); statusEl.dataset.files = loaded; }
+    else dropEl.classList.add('show');
+  }
+
+  // Works from file:// too (Chromium): pick the dialogues folder once.
+  async function openFolder() {
+    if (!window.showDirectoryPicker) { statusEl.textContent = 'Folder picking is not supported in this browser; use Load JSON…'; return; }
+    try {
+      const dir = await showDirectoryPicker();
+      const files = [];
+      for await (const [name, h] of dir.entries())
+        if (h.kind === 'file' && name.toLowerCase().endsWith('.json')) files.push(await h.getFile());
+      files.sort((a, b) => a.name.localeCompare(b.name));
+      if (files.length) loadFiles(files); else statusEl.textContent = 'No .json files in that folder';
+    } catch (_) { /* cancelled */ }
+  }
+  document.getElementById('folder').addEventListener('click', openFolder);
+
+  async function loadFiles(files) {
+    const merged = {};
+    for (const f of files) {
+      try { Object.assign(merged, JSON.parse(await f.text())); }
+      catch (e) { statusEl.textContent = `Could not parse ${f.name}: ${e.message}`; return; }
+    }
+    setData(merged);
+  }
+
+  document.getElementById('file').addEventListener('change', e => loadFiles([...e.target.files]));
+  const main = document.getElementById('main');
+  main.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('over'); });
+  main.addEventListener('dragleave', () => dropEl.classList.remove('over'));
+  main.addEventListener('drop', e => { e.preventDefault(); dropEl.classList.remove('over'); loadFiles([...e.dataTransfer.files]); });
+
+  /* ---------- layout: layered, left to right ---------- */
+  function setData(obj) {
+    nodes = new Map(Object.entries(obj));
+    incoming = new Map([...nodes.keys()].map(k => [k, []]));
+    let dangling = 0;
+    for (const [id, n] of nodes) for (const t of n.next_choice || []) {
+      if (incoming.has(t)) incoming.get(t).push(id); else dangling++;
+    }
+
+    // depth = longest path from any root (cycle-safe)
+    const depth = new Map(), visiting = new Set();
+    const dfs = id => {
+      if (depth.has(id)) return depth.get(id);
+      if (visiting.has(id)) return 0;
+      visiting.add(id);
+      const d = incoming.get(id).reduce((m, p) => Math.max(m, dfs(p) + 1), 0);
+      visiting.delete(id);
+      depth.set(id, d);
+      return d;
+    };
+    for (const id of nodes.keys()) dfs(id);
+
+    const cols = [];
+    for (const [id] of nodes) (cols[depth.get(id)] ||= []).push(id);
+
+    layout = new Map();
+    const y = new Map();
+    cols.forEach((ids, d) => {
+      if (d > 0) {   // order by mean y of parents to keep edges short
+        const key = id => { const ps = incoming.get(id).filter(p => y.has(p)); return ps.length ? ps.reduce((s, p) => s + y.get(p), 0) / ps.length : 1e9; };
+        ids.sort((a, b) => key(a) - key(b));
+      }
+      ids.forEach((id, i) => {
+        const yy = i * (NODE_H + ROW_GAP);
+        y.set(id, yy);
+        layout.set(id, { x: d * (NODE_W + COL_GAP), y: yy, depth: d });
+      });
+    });
+    // pull children towards the mean of their parents' rows where space allows is skipped on purpose: keeps rows tidy
+
+    render(cols.length);
+    const roots = cols[0] ? cols[0].length : 0;
+    statusEl.textContent = `${nodes.size} nodes · ${roots} roots · ${[...nodes.values()].reduce((s, n) => s + (n.next_choice || []).length, 0)} links` + (dangling ? ` · ${dangling} dangling` : '');
+    dropEl.classList.remove('show');
+    fit();
+  }
+
+  /* ---------- rendering ---------- */
+  function render(colCount) {
+    viewport.replaceChildren();
+    elNode = new Map(); edgeEls = [];
+    const edgeLayer = el('g', {}, viewport), nodeLayer = el('g', {}, viewport);
+
+    for (let d = 0; d < colCount; d++) {
+      const t = el('text', { class: 'colhead', x: d * (NODE_W + COL_GAP), y: -14 }, nodeLayer);
+      t.textContent = d === 0 ? 'Opening line' : `Step ${d}`;
+    }
+
+    for (const [id, n] of nodes) for (const t of n.next_choice || []) {
+      const a = layout.get(id), b = layout.get(t);
+      if (!b) continue;
+      const x1 = a.x + NODE_W, y1 = a.y + NODE_H / 2, x2 = b.x, y2 = b.y + NODE_H / 2;
+      const mx = (x1 + x2) / 2;
+      const p = el('path', { class: 'edge', d: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}` }, edgeLayer);
+      edgeEls.push({ p, from: id, to: t });
+    }
+
+    for (const [id, n] of nodes) {
+      const pos = layout.get(id);
+      const hasMood = !!(n.requires && n.requires.min_mood);
+      const g = el('g', { class: `node ${n.speaker}${hasMood ? ' mood' : ''}`, transform: `translate(${pos.x},${pos.y})` }, nodeLayer);
+      el('rect', { width: NODE_W, height: NODE_H }, g);
+      const t = el('text', { x: 8, y: NODE_H / 2 + 4 }, g);
+      t.textContent = trunc(short(id), 26);
+      g.addEventListener('mouseenter', e => { highlight(id); showTip(id, e); });
+      g.addEventListener('mousemove', moveTip);
+      g.addEventListener('mouseleave', () => { clearHighlight(); tip.style.display = 'none'; });
+      elNode.set(id, g);
+    }
+    applyView();
+  }
+
+  function highlight(id) {
+    const keep = new Set([id]);
+    for (const e of edgeEls) {
+      const on = e.from === id || e.to === id;
+      e.p.classList.toggle('hl', on);
+      if (on) { keep.add(e.from); keep.add(e.to); }
+    }
+    for (const e of edgeEls) e.p.classList.toggle('dim', !(e.from === id || e.to === id));
+    for (const [nid, g] of elNode) { g.classList.toggle('dim', !keep.has(nid)); g.classList.toggle('hl', nid === id); }
+  }
+  function clearHighlight() {
+    for (const e of edgeEls) e.p.classList.remove('hl', 'dim');
+    for (const g of elNode.values()) g.classList.remove('dim', 'hl');
+  }
+
+  /* ---------- tooltip ---------- */
+  function showTip(id, ev) {
+    const n = nodes.get(id);
+    tip.replaceChildren();
+    const h = document.createElement('h2'); h.textContent = id; tip.appendChild(h);
+    const tag = document.createElement('span'); tag.className = `tag ${n.speaker}`; tag.textContent = n.speaker; tip.appendChild(tag);
+    const q = document.createElement('p'); q.className = 'quote'; q.textContent = n.text || ''; tip.appendChild(q);
+
+    const dl = document.createElement('dl');
+    const row = (k, node) => {
+      const dt = document.createElement('dt'); dt.textContent = k;
+      const dd = document.createElement('dd');
+      if (typeof node === 'string') dd.textContent = node; else dd.appendChild(node);
+      dl.append(dt, dd);
+    };
+    const r = n.requires || {};
+    row('Min hearts', String(r.min_relationship ?? '–'));
+    row('Stages', (r.stage || []).join(', ') || '–');
+    if (r.min_mood) {
+      row('Min mood', Object.entries(r.min_mood).map(([k, v]) => `${k} ${v}`).join(' · '));
+    }
+    if (n.semantic) {
+      const wrap = document.createElement('div');
+      for (const [k, v] of Object.entries(n.semantic)) {
+        const b = document.createElement('div'); b.className = 'bar';
+        const label = document.createElement('span'); label.textContent = `${k} ${v}`; label.style.minWidth = '72px';
+        const bar = document.createElement('i'); bar.style.width = `${Math.max(0, Math.min(1, v)) * 90}px`;
+        b.append(label, bar); wrap.appendChild(b);
+      }
+      row('Semantic', wrap);
+    }
+    const next = n.next_choice || [];
+    row('Next', next.length ? next.map(short).join(', ') : 'none (conversation ends)');
+    const inc = incoming.get(id) || [];
+    row('Reached from', inc.length ? inc.map(short).join(', ') : 'none (opening line)');
+    tip.appendChild(dl);
+
+    tip.style.display = 'block';
+    moveTip(ev);
+  }
+  function moveTip(ev) {
+    const pad = 16, w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = ev.clientX + pad, y = ev.clientY + pad;
+    if (x + w > innerWidth - 8) x = ev.clientX - w - pad;
+    if (y + h > innerHeight - 8) y = innerHeight - h - 8;
+    tip.style.left = Math.max(8, x) + 'px'; tip.style.top = Math.max(8, y) + 'px';
+  }
+
+  /* ---------- pan / zoom ---------- */
+  function applyView() { viewport.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.k})`); }
+  function fit() {
+    if (!layout.size) return;
+    let maxX = 0, maxY = 0;
+    for (const p of layout.values()) { maxX = Math.max(maxX, p.x + NODE_W); maxY = Math.max(maxY, p.y + NODE_H); }
+    const r = svg.getBoundingClientRect(), m = 40;
+    const k = Math.min((r.width - m * 2) / maxX, (r.height - m * 2) / (maxY + 20), 1.2);
+    view = { k, x: (r.width - maxX * k) / 2, y: m + 10 };
+    applyView();
+  }
+  document.getElementById('fit').addEventListener('click', fit);
+  addEventListener('resize', fit);
+
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = svg.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const k = Math.max(0.1, Math.min(4, view.k * Math.exp(-e.deltaY * 0.0015)));
+    view.x = mx - (mx - view.x) * (k / view.k);
+    view.y = my - (my - view.y) * (k / view.k);
+    view.k = k; applyView();
+  }, { passive: false });
+
+  let drag = null;
+  svg.addEventListener('pointerdown', e => {
+    if (e.target.closest('.node')) return;
+    drag = { x: e.clientX - view.x, y: e.clientY - view.y };
+    svg.classList.add('panning'); svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener('pointermove', e => { if (drag) { view.x = e.clientX - drag.x; view.y = e.clientY - drag.y; applyView(); } });
+  svg.addEventListener('pointerup', () => { drag = null; svg.classList.remove('panning'); });
+
+  /* ---------- search ---------- */
+  document.getElementById('search').addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase();
+    for (const [id, g] of elNode) {
+      const n = nodes.get(id);
+      g.classList.toggle('match', !!q && (id.toLowerCase().includes(q) || (n.text || '').toLowerCase().includes(q)));
+    }
+  });
+
+  loadDefaults();
+})();
+</script>
+</body>
+</html>
