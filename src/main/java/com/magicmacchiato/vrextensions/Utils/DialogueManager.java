@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.magicmacchiato.vrextensions.Dialogue.DialogueNode;
 import com.magicmacchiato.vrextensions.Enums.Speaker;
+import com.magicmacchiato.vrextensions.Features.Mood;
 import net.neoforged.fml.ModList;
 
 import java.io.IOException;
@@ -38,6 +39,14 @@ public class DialogueManager {
         if (modFile == null) {
             LOGGER.error("Could not find mod file for '{}'; no dialogues loaded.", MOD_ID);
             return;
+        }
+
+        // Not inside dialogues/, which is scanned for dialogue nodes.
+        Path reactions = modFile.getFile().findResource("assets", MOD_ID, "personality_reactions.json");
+        if (Files.isRegularFile(reactions)) {
+            Mood.loadReactions(reactions);
+        } else {
+            LOGGER.error("Personality reactions file not found: {}", reactions);
         }
 
         Path dir = modFile.getFile().findResource("assets", MOD_ID, "dialogues");

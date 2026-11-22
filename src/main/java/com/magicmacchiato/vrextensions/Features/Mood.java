@@ -2,43 +2,127 @@ package com.magicmacchiato.vrextensions.Features;
 
 import com.javic.slimpatch.entity.VillagerPersonality;
 import com.magicmacchiato.vrextensions.Dialogue.Semantic;
+import com.magicmacchiato.vrextensions.Enums.Emotion;
 import com.magicmacchiato.vrextensions.Utils.NamedVector;
 import com.magicmacchiato.vrextensions.Utils.Vectors;
+import com.magicmacchiato.vrextensions.VillagersRebornExtensionsMod;
+
+import static com.magicmacchiato.vrextensions.VillagersRebornExtensionsMod.LOGGER;
 import net.minecraft.nbt.CompoundTag;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class Mood {
     private static final String POSITIVENESS_KEY = "vrextensions:mood.positiveness";
     private static final String EAGERNESS_KEY = "vrextensions:mood.eagerness";
     private static final String SECURITY_KEY = "vrextensions:mood.security";
 
-    /**
-     * How each personality reacts to each semantic, in {@link Vectors#SEMANTIC} order
-     * (friendly, mean, flirt, joke). Each value is in [-1, 1]: negative = dislikes, positive = likes.
-     * MOCK VALUES - to be tuned.
-     */
-    public static final Map<VillagerPersonality, NamedVector.Vector> PERSONALITY_REACTIONS;
+    /** Largest allowed magnitude of a single personality reaction value in the JSON (values above 1 amplify). */
+    public static final float REACTION_LIMIT = 2.0f;
 
-    static {
+    /**
+     * How each personality reacts to each semantic, as a vector in {@link Vectors#SEMANTIC} order.
+     * Each value is in [-REACTION_LIMIT, REACTION_LIMIT]: negative = dislikes, positive = likes. Loaded from
+     * assets/vrextensions/personality_reactions.json by {@link #loadReactions(Path)} (MOCK values - to be tuned).
+     */
+    private static volatile Map<VillagerPersonality, NamedVector.Vector> personalityReactions = Map.of();
+
+    public static Map<VillagerPersonality, NamedVector.Vector> getPersonalityReactions() {
+        return personalityReactions;
+    }
+
+    /**
+     * Loads personality reactions from JSON of the form
+     * {@code {"FRIENDLY": {"friendly": 0.8, "mean": -0.6, "flirt": 0.2, "joke": 0.5}, ...}}.
+     * Entries that are unknown, incomplete, non-finite or outside +-REACTION_LIMIT are skipped with an error, and every
+     * personality missing afterwards is reported (its reaction then counts as 0).
+     */
+    public static void loadReactions(Path file) {
         Map<VillagerPersonality, NamedVector.Vector> map = new EnumMap<>(VillagerPersonality.class);
-        //                                                                          friendly mean   flirt   joke
-        map.put(VillagerPersonality.FRIENDLY, Vectors.SEMANTIC_VECTOR.newVector(new float[]{ 0.8f, -0.6f,  0.2f,  0.5f}));
-        map.put(VillagerPersonality.MEAN,     Vectors.SEMANTIC_VECTOR.newVector(new float[]{-0.5f,  0.6f, -0.4f, -0.2f}));
-        map.put(VillagerPersonality.SHY,      Vectors.SEMANTIC_VECTOR.newVector(new float[]{ 0.5f, -0.5f, -0.6f,  0.2f}));
-        map.put(VillagerPersonality.BRAVE,    Vectors.SEMANTIC_VECTOR.newVector(new float[]{ 0.4f,  0.2f,  0.4f,  0.3f}));
-        map.put(VillagerPersonality.GRUMPY,   Vectors.SEMANTIC_VECTOR.newVector(new float[]{-0.5f,  0.5f, -0.5f, -0.6f}));
-        map.put(VillagerPersonality.GREEDY,   Vectors.SEMANTIC_VECTOR.newVector(new float[]{ 0.0f, -0.3f,  0.3f,  0.0f}));
-        map.put(VillagerPersonality.ROMANTIC, Vectors.SEMANTIC_VECTOR.newVector(new float[]{ 0.4f, -0.7f,  0.9f,  0.4f}));
-        map.put(VillagerPersonality.WISE,     Vectors.SEMANTIC_VECTOR.newVector(new float[]{ 0.5f, -0.6f, -0.2f,  0.3f}));
-        PERSONALITY_REACTIONS = Collections.unmodifiableMap(map);
+        try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+            for (var entry : root.entrySet()) {
+                VillagerPersonality personality = parsePersonality(entry.getKey());
+                if (personality == null) {
+                    LOGGER.error("personality_reactions: unknown personality '{}'.", entry.getKey());
+                    continue;
+                }
+                NamedVector.Vector vector = parseReaction(personality, entry.getValue());
+                if (vector != null) map.put(personality, vector);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to read personality reactions {}", file, e);
+        }
+        for (VillagerPersonality p : VillagerPersonality.values()) {
+            if (!map.containsKey(p)) LOGGER.error("personality_reactions: no valid entry for {}; its reactions count as 0.", p);
+        }
+        personalityReactions = Collections.unmodifiableMap(map);
+        LOGGER.info("Loaded personality reactions for {} personalities.", map.size());
+    }
+
+    private static VillagerPersonality parsePersonality(String name) {
+        for (VillagerPersonality p : VillagerPersonality.values()) {
+            if (p.name().equalsIgnoreCase(name)) return p;
+        }
+        return null;
+    }
+
+    private static NamedVector.Vector parseReaction(VillagerPersonality personality, JsonElement element) {
+        if (!element.isJsonObject()) {
+            LOGGER.error("personality_reactions: {} must be an object.", personality);
+            return null;
+        }
+        JsonObject obj = element.getAsJsonObject();
+        for (String key : obj.keySet()) {
+            if (!List.of(Vectors.SEMANTIC).contains(key)) {
+                LOGGER.error("personality_reactions: {} has unknown semantic '{}'.", personality, key);
+                return null;
+            }
+        }
+        float[] values = new float[Vectors.SEMANTIC.length];
+        for (int i = 0; i < values.length; i++) {
+            String name = Vectors.SEMANTIC[i];
+            JsonElement v = obj.get(name);
+            if (v == null || !v.isJsonPrimitive() || !v.getAsJsonPrimitive().isNumber()) {
+                LOGGER.error("personality_reactions: {} is missing a numeric '{}'.", personality, name);
+                return null;
+            }
+            float f = v.getAsFloat();
+            if (!Float.isFinite(f) || Math.abs(f) > REACTION_LIMIT) {
+                LOGGER.error("personality_reactions: {}.{} = {} is outside +-{}.", personality, name, f, REACTION_LIMIT);
+                return null;
+            }
+            values[i] = f;
+        }
+        return Vectors.SEMANTIC_VECTOR.newVector(values);
     }
 
     /** How strongly a reaction score (about -2..2) shifts the mood. */
-    public static final float REACTION_TO_MOOD = 2.0f;
+    public static final float POSITIVENESSS_SCALE = 2.0f;
+    /** MOCK - how strongly a reaction score shifts eagerness (wanting to keep talking). Same sign as the reaction. */
+    public static final float EAGERNESS_SCALE = 1.0f;
+    /** MOCK - how strongly a reaction score shifts security through conversation. Kept small: world events dominate. */
+    public static final float CONVERSATION_SECURITY_SCALE = 0.5f;
     public static final float MOOD_LIMIT = 5.0f;
+
+    /** MOCK - damage multiplier bonus in 0..1: security drop = damage * (1 + DAMAGE_COEFFICIENT) + ... */
+    public static final float DAMAGE_COEFFICIENT = 0.5f;
+    /** Avoids division by zero when current health reaches 0. */
+    public static final float HEALTH_EPSILON = 0.1f;
+    /** MOCK - scales the raw drop down to the +-MOOD_LIMIT range. */
+    public static final float SECURITY_SCALE = 0.1f;
 
     private float positiveness;
     private float eagerness;
@@ -74,15 +158,95 @@ public class Mood {
 
     /** Reaction of a personality to a dialogue's semantics: dot(personality reaction, semantic). */
     public static float reaction(VillagerPersonality personality, Semantic semantic) {
-        NamedVector.Vector reaction = PERSONALITY_REACTIONS.get(personality);
+        NamedVector.Vector reaction = personalityReactions.get(personality);
         if (reaction == null || semantic == null) return 0f;
         return reaction.dot(semantic.getVector());
     }
 
-    /** Applies a reaction score to the mood (positiveness for now), clamped to +-MOOD_LIMIT. */
+    /** Chance per tick, per axis, that the axis decays one step toward 0 (0.01 = on average once per 100 ticks). */
+    public static final float DECAY_CHANCE = 0.01f;
+    /** MOCK - flat decay step for every personality; meant to become personality-based. */
+    public static final float DECAY_STEP = 0.1f;
+
+    /**
+     * One tick of decay: each axis independently has a {@link #DECAY_CHANCE} to move {@link #DECAY_STEP} toward 0
+     * (snapping to exactly 0 when closer than a step, so values converge to 0 without overshooting).
+     *
+     * @return true if any axis changed
+     */
+    public boolean decayTick(net.minecraft.util.RandomSource random) {
+        float p = decayAxis(this.positiveness, random);
+        float e = decayAxis(this.eagerness, random);
+        float s = decayAxis(this.security, random);
+        boolean changed = p != this.positiveness || e != this.eagerness || s != this.security;
+        this.positiveness = p;
+        this.eagerness = e;
+        this.security = s;
+        return changed;
+    }
+
+    private static float decayAxis(float value, net.minecraft.util.RandomSource random) {
+        if (value == 0f || Float.isNaN(value) || random.nextFloat() >= DECAY_CHANCE) return value;
+        if (Math.abs(value) <= DECAY_STEP) return 0f;
+        return value > 0f ? value - DECAY_STEP : value + DECAY_STEP;
+    }
+
+    /**
+     * Applies a reaction score to the mood, each axis clamped to +-MOOD_LIMIT. A good conversation (reaction > 0)
+     * raises positiveness, eagerness and security together; a bad one lowers them. Each axis has its own scale.
+     */
     public void applyReaction(float reaction) {
-        float value = this.positiveness + reaction * REACTION_TO_MOOD;
-        this.positiveness = Math.max(-MOOD_LIMIT, Math.min(MOOD_LIMIT, value));
+        if (Float.isNaN(reaction)) return;
+        this.positiveness = clamp(this.positiveness + reaction * POSITIVENESSS_SCALE);
+        this.eagerness = clamp(this.eagerness + reaction * EAGERNESS_SCALE);
+        this.security = clamp(this.security + reaction * CONVERSATION_SECURITY_SCALE);
+    }
+
+    private static float clamp(float value) {
+        return Math.max(-MOOD_LIMIT, Math.min(MOOD_LIMIT, value));
+    }
+
+    /**
+     * Security drop from damage that actually got through (after armor etc.):
+     * {@code damage * (1 + DAMAGE_COEFFICIENT) + (1 + maxHealth / (currentHealth + epsilon))}, times
+     * {@link #SECURITY_SCALE}. {@code currentHealth} is the health left after the hit.
+     * MOCK formula - to be redesigned.
+     */
+    public static float securityDrop(float damage, float maxHealth, float currentHealth) {
+        if (!(damage > 0f)) return 0f;
+        float raw = damage * (1f + DAMAGE_COEFFICIENT)
+                + (1f + maxHealth / (Math.max(currentHealth, 0f) + HEALTH_EPSILON));
+        return raw * SECURITY_SCALE;
+    }
+
+    /**
+     * Security gain from healing: {@code healed * (1 + currentHealth / maxHealth)}, times
+     * {@link #SECURITY_SCALE}. No flat term and no damage coefficient, so recovery is slower than the
+     * drop from the same amount of damage. {@code currentHealth} is the health after the heal.
+     * MOCK formula - to be redesigned.
+     */
+    public static float securityGain(float healed, float maxHealth, float currentHealth) {
+        if (!(healed > 0f) || !(maxHealth > 0f)) return 0f;
+        return healed * (1f + Math.min(currentHealth / maxHealth, 1f)) * SECURITY_SCALE;
+    }
+
+    /** Raises security by the gain for this heal, clamped to +-MOOD_LIMIT. */
+    public void applyHeal(float healed, float maxHealth, float currentHealth) {
+        float value = this.security + securityGain(healed, maxHealth, currentHealth);
+        this.security = Math.max(-MOOD_LIMIT, Math.min(MOOD_LIMIT, value));
+    }
+
+    /** Lowers security by the drop for this hit, clamped to +-MOOD_LIMIT. */
+    public void applyDamage(float damage, float maxHealth, float currentHealth) {
+        float value = this.security - securityDrop(damage, maxHealth, currentHealth);
+        this.security = Math.max(-MOOD_LIMIT, Math.min(MOOD_LIMIT, value));
+    }
+
+    /** Console line after a mood update: {@code <npc_uuid>: positiveness: <p>, security: <s>, emotion: <e>}. */
+    public void logState(UUID npcUuid) {
+        VillagersRebornExtensionsMod.LOGGER.info("{}: positiveness: {}, eagerness: {}, security: {}, emotion: {}",
+                npcUuid, this.positiveness, this.eagerness, this.security,
+                Emotion.fromMood(this.positiveness, this.eagerness, this.security));
     }
 
     public void save(CompoundTag tag) {

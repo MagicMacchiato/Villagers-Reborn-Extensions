@@ -8,15 +8,19 @@ import com.magicmacchiato.vrextensions.Dialogue.DialogueNode;
 import com.magicmacchiato.vrextensions.Enums.Speaker;
 import com.magicmacchiato.vrextensions.Features.Mood;
 import com.magicmacchiato.vrextensions.Features.MoodHolder;
+import com.magicmacchiato.vrextensions.Features.MoodSync;
 import com.magicmacchiato.vrextensions.Utils.ConversationManager;
 import com.magicmacchiato.vrextensions.Utils.Requirements;
 
 import java.util.List;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.npc.Villager;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -41,6 +45,25 @@ public record ChooseDialoguePacket(int entityId, String nodeId) implements Custo
         return TYPE;
     }
 
+    /**
+     * Same effects as Villagers Reborn's success/fail: green happy particles (7 bursts) for a positive reaction,
+     * angry particles (4 bursts) for a negative one, scattered horizontally (gaussian * 0.3) around the villager at
+     * y + 1. Mirrors playPositiveReactionFeedback / playNegativeReactionFeedback in the base mod. Nothing at 0.
+     */
+    private static void spawnReactionParticles(ServerLevel level, Villager villager, float reaction) {
+        if (reaction == 0f || Float.isNaN(reaction)) return;
+        boolean positive = reaction > 0f;
+        SimpleParticleType type = positive ? ParticleTypes.HAPPY_VILLAGER : ParticleTypes.ANGRY_VILLAGER;
+        int bursts = positive ? 7 : 4;
+        for (int i = 0; i < bursts; i++) {
+            level.sendParticles(type,
+                    villager.getX() + villager.getRandom().nextGaussian() * 0.3D,
+                    villager.getY() + 1.0D,
+                    villager.getZ() + villager.getRandom().nextGaussian() * 0.3D,
+                    1, 0.0D, 0.0D, 0.0D, 0.0D);
+        }
+    }
+
     public static void handle(ChooseDialoguePacket msg, IPayloadContext ctx) {
         ctx.enqueueWork(() -> {
             if (!(ctx.player() instanceof ServerPlayer player)) return;
@@ -63,8 +86,9 @@ public record ChooseDialoguePacket(int entityId, String nodeId) implements Custo
             if (personality != null && villager instanceof MoodHolder holder) {
                 float reaction = Mood.reaction(personality, node.semantic());
                 holder.getVrMood().applyReaction(reaction);
-                LOGGER.info("{} chose {} -> {} reaction {}, positiveness now {}", player.getName().getString(),
-                        node.id(), personality, reaction, holder.getVrMood().getPositiveness());
+                spawnReactionParticles(player.serverLevel(), villager, reaction);
+                holder.getVrMood().logState(villager.getUUID());
+                MoodSync.send(player, villager);
             }
 
             // Mood has just changed, so evaluate the reply's requirements afterwards.
