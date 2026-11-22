@@ -2,6 +2,7 @@ package com.magicmacchiato.vrextensions.Mixins;
 
 import com.javic.slimpatch.client.gui.VillagerDialogueScreen;
 import com.magicmacchiato.vrextensions.Dialogue.DialogueNode;
+import com.magicmacchiato.vrextensions.Enums.Emotion;
 import com.magicmacchiato.vrextensions.Utils.DialogueManager;
 import com.magicmacchiato.vrextensions.Features.DialogueReplyReceiver;
 import com.magicmacchiato.vrextensions.Features.MoodReceiver;
@@ -35,7 +36,8 @@ public abstract class VillagerDialogueScreenMixin implements DialogueReplyReceiv
     @Unique private boolean vrextensions$started;
 
     @Unique private boolean vrextensions$hasMood;
-    @Unique private float vrextensions$positiveness, vrextensions$eagerness, vrextensions$security;
+    @Unique private String vrextensions$emotionText = "";
+    @Unique private int vrextensions$emotionColor = 0xFFFFFFFF;
 
     @Shadow @Final private Villager villager;
     @Shadow private String getDisplayedVillagerName(String name) { return name; }
@@ -102,19 +104,20 @@ public abstract class VillagerDialogueScreenMixin implements DialogueReplyReceiv
     public void onVrMood(int entityId, float positiveness, float eagerness, float security) {
         if (villager.getId() != entityId) return;
         vrextensions$hasMood = true;
-        vrextensions$positiveness = positiveness;
-        vrextensions$eagerness = eagerness;
-        vrextensions$security = security;
+        // Recompute the badge only when the mood changes, not every frame.
+        vrextensions$emotionText = Emotion.fromMood(positiveness, eagerness, security).toString();
+        vrextensions$emotionColor = 0xFF000000
+                | Integer.parseInt(Emotion.getColor(positiveness, eagerness, security).substring(1), 16);
     }
 
-    /** Plain mood badge right of the villager's name (the name is drawn at x=10, y=34 by the base screen). */
+    /** Mood badge (emotion name in its mood color) right of the villager's name (the name is drawn at x=10, y=34 by the base screen). */
     @Inject(method = "render", at = @At("TAIL"))
     private void vrextensions$renderMoodBadge(GuiGraphics graphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
         if (!vrextensions$hasMood) return;
         Font font = Minecraft.getInstance().font;
         String name = villager.hasCustomName() ? villager.getCustomName().getString() : villager.getName().getString();
-        String text = String.format("Mood  P %+.1f  E %+.1f  S %+.1f",
-                vrextensions$positiveness, vrextensions$eagerness, vrextensions$security);
+        String text = vrextensions$emotionText;
+        int color = vrextensions$emotionColor;
 
         int padX = 4, padY = 2;
         int x = 10 + font.width(getDisplayedVillagerName(name)) + 8;
@@ -122,6 +125,6 @@ public abstract class VillagerDialogueScreenMixin implements DialogueReplyReceiv
         int w = font.width(text) + padX * 2, h = font.lineHeight + padY * 2 - 1;
         graphics.fill(x, y, x + w, y + h, 0xAA000000);             // background
         graphics.renderOutline(x, y, w, h, 0xFF8A8A8A);            // border
-        graphics.drawString(font, text, x + padX, y + padY, 0xFFFFFF);
+        graphics.drawString(font, text, x + padX, y + padY, color);
     }
 }

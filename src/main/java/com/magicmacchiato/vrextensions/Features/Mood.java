@@ -2,6 +2,7 @@ package com.magicmacchiato.vrextensions.Features;
 
 import com.javic.slimpatch.entity.VillagerPersonality;
 import com.magicmacchiato.vrextensions.Dialogue.Semantic;
+import com.magicmacchiato.vrextensions.Enums.Emotion;
 import com.magicmacchiato.vrextensions.Utils.NamedVector;
 import com.magicmacchiato.vrextensions.Utils.Vectors;
 import com.magicmacchiato.vrextensions.VillagersRebornExtensionsMod;
@@ -28,9 +29,12 @@ public class Mood {
     private static final String EAGERNESS_KEY = "vrextensions:mood.eagerness";
     private static final String SECURITY_KEY = "vrextensions:mood.security";
 
+    /** Largest allowed magnitude of a single personality reaction value in the JSON (values above 1 amplify). */
+    public static final float REACTION_LIMIT = 2.0f;
+
     /**
      * How each personality reacts to each semantic, as a vector in {@link Vectors#SEMANTIC} order.
-     * Each value is in [-1, 1]: negative = dislikes, positive = likes. Loaded from
+     * Each value is in [-REACTION_LIMIT, REACTION_LIMIT]: negative = dislikes, positive = likes. Loaded from
      * assets/vrextensions/personality_reactions.json by {@link #loadReactions(Path)} (MOCK values - to be tuned).
      */
     private static volatile Map<VillagerPersonality, NamedVector.Vector> personalityReactions = Map.of();
@@ -42,7 +46,7 @@ public class Mood {
     /**
      * Loads personality reactions from JSON of the form
      * {@code {"FRIENDLY": {"friendly": 0.8, "mean": -0.6, "flirt": 0.2, "joke": 0.5}, ...}}.
-     * Entries that are unknown, incomplete, non-finite or outside [-1, 1] are skipped with an error, and every
+     * Entries that are unknown, incomplete, non-finite or outside +-REACTION_LIMIT are skipped with an error, and every
      * personality missing afterwards is reported (its reaction then counts as 0).
      */
     public static void loadReactions(Path file) {
@@ -96,8 +100,8 @@ public class Mood {
                 return null;
             }
             float f = v.getAsFloat();
-            if (!Float.isFinite(f) || f < -1f || f > 1f) {
-                LOGGER.error("personality_reactions: {}.{} = {} is outside [-1, 1].", personality, name, f);
+            if (!Float.isFinite(f) || Math.abs(f) > REACTION_LIMIT) {
+                LOGGER.error("personality_reactions: {}.{} = {} is outside +-{}.", personality, name, f, REACTION_LIMIT);
                 return null;
             }
             values[i] = f;
@@ -106,7 +110,11 @@ public class Mood {
     }
 
     /** How strongly a reaction score (about -2..2) shifts the mood. */
-    public static final float REACTION_TO_MOOD = 2.0f;
+    public static final float POSITIVENESSS_SCALE = 2.0f;
+    /** MOCK - how strongly a reaction score shifts eagerness (wanting to keep talking). Same sign as the reaction. */
+    public static final float EAGERNESS_SCALE = 1.0f;
+    /** MOCK - how strongly a reaction score shifts security through conversation. Kept small: world events dominate. */
+    public static final float CONVERSATION_SECURITY_SCALE = 0.5f;
     public static final float MOOD_LIMIT = 5.0f;
 
     /** MOCK - damage multiplier bonus in 0..1: security drop = damage * (1 + DAMAGE_COEFFICIENT) + ... */
@@ -155,10 +163,47 @@ public class Mood {
         return reaction.dot(semantic.getVector());
     }
 
-    /** Applies a reaction score to the mood (positiveness for now), clamped to +-MOOD_LIMIT. */
+    /** Chance per tick, per axis, that the axis decays one step toward 0 (0.01 = on average once per 100 ticks). */
+    public static final float DECAY_CHANCE = 0.01f;
+    /** MOCK - flat decay step for every personality; meant to become personality-based. */
+    public static final float DECAY_STEP = 0.1f;
+
+    /**
+     * One tick of decay: each axis independently has a {@link #DECAY_CHANCE} to move {@link #DECAY_STEP} toward 0
+     * (snapping to exactly 0 when closer than a step, so values converge to 0 without overshooting).
+     *
+     * @return true if any axis changed
+     */
+    public boolean decayTick(net.minecraft.util.RandomSource random) {
+        float p = decayAxis(this.positiveness, random);
+        float e = decayAxis(this.eagerness, random);
+        float s = decayAxis(this.security, random);
+        boolean changed = p != this.positiveness || e != this.eagerness || s != this.security;
+        this.positiveness = p;
+        this.eagerness = e;
+        this.security = s;
+        return changed;
+    }
+
+    private static float decayAxis(float value, net.minecraft.util.RandomSource random) {
+        if (value == 0f || Float.isNaN(value) || random.nextFloat() >= DECAY_CHANCE) return value;
+        if (Math.abs(value) <= DECAY_STEP) return 0f;
+        return value > 0f ? value - DECAY_STEP : value + DECAY_STEP;
+    }
+
+    /**
+     * Applies a reaction score to the mood, each axis clamped to +-MOOD_LIMIT. A good conversation (reaction > 0)
+     * raises positiveness, eagerness and security together; a bad one lowers them. Each axis has its own scale.
+     */
     public void applyReaction(float reaction) {
-        float value = this.positiveness + reaction * REACTION_TO_MOOD;
-        this.positiveness = Math.max(-MOOD_LIMIT, Math.min(MOOD_LIMIT, value));
+        if (Float.isNaN(reaction)) return;
+        this.positiveness = clamp(this.positiveness + reaction * POSITIVENESSS_SCALE);
+        this.eagerness = clamp(this.eagerness + reaction * EAGERNESS_SCALE);
+        this.security = clamp(this.security + reaction * CONVERSATION_SECURITY_SCALE);
+    }
+
+    private static float clamp(float value) {
+        return Math.max(-MOOD_LIMIT, Math.min(MOOD_LIMIT, value));
     }
 
     /**
@@ -197,10 +242,11 @@ public class Mood {
         this.security = Math.max(-MOOD_LIMIT, Math.min(MOOD_LIMIT, value));
     }
 
-    /** Console line after a mood update: {@code <npc_uuid>: positiveness: <p>, security: <s>}. */
+    /** Console line after a mood update: {@code <npc_uuid>: positiveness: <p>, security: <s>, emotion: <e>}. */
     public void logState(UUID npcUuid) {
-        VillagersRebornExtensionsMod.LOGGER.info("{}: positiveness: {}, security: {}",
-                npcUuid, this.positiveness, this.security);
+        VillagersRebornExtensionsMod.LOGGER.info("{}: positiveness: {}, eagerness: {}, security: {}, emotion: {}",
+                npcUuid, this.positiveness, this.eagerness, this.security,
+                Emotion.fromMood(this.positiveness, this.eagerness, this.security));
     }
 
     public void save(CompoundTag tag) {

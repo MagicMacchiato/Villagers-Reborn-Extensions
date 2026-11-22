@@ -3,10 +3,22 @@ package com.magicmacchiato.vrextensions.Features;
 import net.minecraft.world.entity.LivingEntity;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.entity.living.LivingHealEvent;
 
 /** World events that move a villager's mood. Registered on the NeoForge game bus. */
 public class MoodEvents {
+
+    // Every server tick each axis may decay one step toward 0 (see Mood.decayTick).
+    @SubscribeEvent
+    public void onTick(EntityTickEvent.Post event) {
+        var entity = event.getEntity();
+        if (entity.level().isClientSide || !(entity instanceof MoodHolder holder)) return;
+        if (holder.getVrMood().decayTick(entity.getRandom())
+                && entity instanceof net.minecraft.world.entity.npc.Villager villager) {
+            MoodSync.sendToDialoguePlayer(villager);
+        }
+    }
 
     // Any health regeneration (Villagers Reborn passive heal, potions, ...) raises security.
     // LOWEST + receiveCanceled=false: see the final amount, skip cancelled heals.
