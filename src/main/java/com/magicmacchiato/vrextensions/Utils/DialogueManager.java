@@ -136,6 +136,19 @@ public class DialogueManager {
         return replies.isEmpty() ? null : replies.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(replies.size()));
     }
 
+    /**
+     * Picks a random node among the chosen node's next_choice regardless of who speaks it (villager-to-villager
+     * conversations), or null if none is allowed.
+     */
+    public static DialogueNode randomNext(DialogueNode current, Predicate<DialogueNode> allowed) {
+        List<DialogueNode> options = new ArrayList<>();
+        for (String id : current.nextChoice()) {
+            DialogueNode next = DIALOGUE_MAP.get(id);
+            if (next != null && allowed.test(next)) options.add(next);
+        }
+        return options.isEmpty() ? null : options.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(options.size()));
+    }
+
     public static DialogueNode get(String id) {
         return DIALOGUE_MAP.get(id);
     }

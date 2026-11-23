@@ -26,7 +26,9 @@ public class VillagersRebornExtensionsMod {
     public VillagersRebornExtensionsMod(IEventBus modEventBus, ModContainer modContainer) {
         modEventBus.addListener(this::commonSetup);
         ModNetwork.register(modEventBus);
+        com.magicmacchiato.vrextensions.Items.ModItems.init();
         NeoForge.EVENT_BUS.register(this);
+        NeoForge.EVENT_BUS.register(new com.magicmacchiato.vrextensions.Items.RelationshipDumpEvents());
         NeoForge.EVENT_BUS.register(new com.magicmacchiato.vrextensions.Features.MoodEvents());
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }

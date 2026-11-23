@@ -16,6 +16,7 @@ public class ModNetwork {
         registrar.playToServer(StartConversationPacket.TYPE, StartConversationPacket.CODEC, StartConversationPacket::handle);
         registrar.playToServer(ChooseDialoguePacket.TYPE, ChooseDialoguePacket.CODEC, ChooseDialoguePacket::handle);
         registrar.playToClient(MoodSyncPacket.TYPE, MoodSyncPacket.CODEC, MoodSyncPacket::handle);
+        registrar.playToClient(OpenDialoguePacket.TYPE, OpenDialoguePacket.CODEC, OpenDialoguePacket::handle);
         registrar.playToClient(DialogueReplyPacket.TYPE, DialogueReplyPacket.CODEC, DialogueReplyPacket::handle);
     }
 }
