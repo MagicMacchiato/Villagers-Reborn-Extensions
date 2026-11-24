@@ -4,7 +4,8 @@
   "package": "com.magicmacchiato.vrextensions.Mixins",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "VillagerEntityMixin"
+    "VillagerEntityMixin",
+    "VillagerBrainMixin"
   ],
   "client": [
     "VillagerDialogueScreenMixin",

@@ -6,6 +6,8 @@ import com.javic.slimpatch.entity.MaleVillagerEntity;
 import com.magicmacchiato.vrextensions.Features.Mood;
 import com.magicmacchiato.vrextensions.Features.MoodHolder;
 import com.magicmacchiato.vrextensions.Features.MoodSync;
+import com.magicmacchiato.vrextensions.Features.RelationshipHolder;
+import com.magicmacchiato.vrextensions.Features.VillagerRelationship;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -17,13 +19,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin({FemaleVillagerEntity.class, MaleVillagerEntity.class})
-public class VillagerEntityMixin implements MoodHolder {
+public class VillagerEntityMixin implements MoodHolder, RelationshipHolder {
     @Unique
     private final Mood mood = new Mood();
 
     @Override
     public Mood getVrMood() {
         return this.mood;
+    }
+
+    @Unique
+    private final VillagerRelationship relationship = new VillagerRelationship();
+
+    @Override
+    public VillagerRelationship getVrRelationship() {
+        return this.relationship;
     }
 
 
@@ -34,6 +44,7 @@ public class VillagerEntityMixin implements MoodHolder {
     )
     private void addAdditionalSaveData(CompoundTag tag, CallbackInfo callbackInfo) {
         this.mood.save(tag);
+        this.relationship.save(tag);
     }
 
     // Load to tag
@@ -43,6 +54,7 @@ public class VillagerEntityMixin implements MoodHolder {
     )
     private void readAdditionalSaveData(CompoundTag tag, CallbackInfo callbackInfo) {
         this.mood.load(tag);
+        this.relationship.load(tag);
     }
 
     @Unique
