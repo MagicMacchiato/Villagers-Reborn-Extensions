@@ -1,7 +1,7 @@
 package com.magicmacchiato.vrextensions.Network;
 
 import com.javic.slimpatch.dialogue.DialogueManager;
-import com.magicmacchiato.vrextensions.Dialogue.DialogueNode;
+import com.magicmacchiato.vrextensions.Dialogue.Dialogue;
 import com.magicmacchiato.vrextensions.Features.MoodSync;
 import com.magicmacchiato.vrextensions.Utils.ConversationManager;
 import com.magicmacchiato.vrextensions.Utils.Requirements;
@@ -41,11 +41,11 @@ public record StartConversationPacket(int entityId) implements CustomPacketPaylo
 
             MoodSync.send(player, villager);
             var allowed = Requirements.forPair(villager, player);
-            DialogueNode opener = com.magicmacchiato.vrextensions.Utils.DialogueManager.randomOpener(allowed);
+            Dialogue opener = com.magicmacchiato.vrextensions.Utils.DialogueManager.randomOpener(allowed, allowed);
             if (opener == null) return;
             ConversationManager.set(villager.getUUID(), player.getUUID(), opener.id());
             PacketDistributor.sendToPlayer(player, new DialogueReplyPacket(villager.getId(), opener.id(),
-                    com.magicmacchiato.vrextensions.Utils.DialogueManager.choicesOf(opener, allowed).stream().map(DialogueNode::id).toList()));
+                    com.magicmacchiato.vrextensions.Utils.DialogueManager.choicesOf(opener, allowed).stream().map(Dialogue::id).toList()));
         });
     }
 }

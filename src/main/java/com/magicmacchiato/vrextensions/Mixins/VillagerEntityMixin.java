@@ -3,10 +3,13 @@ package com.magicmacchiato.vrextensions.Mixins;
 
 import com.javic.slimpatch.entity.FemaleVillagerEntity;
 import com.javic.slimpatch.entity.MaleVillagerEntity;
+import com.magicmacchiato.vrextensions.Features.InterestHolder;
 import com.magicmacchiato.vrextensions.Features.Mood;
 import com.magicmacchiato.vrextensions.Features.MoodHolder;
 import com.magicmacchiato.vrextensions.Features.MoodSync;
 import com.magicmacchiato.vrextensions.Features.RelationshipHolder;
+import com.magicmacchiato.vrextensions.Features.TalkCooldownHolder;
+import com.magicmacchiato.vrextensions.Features.VillagerInterests;
 import com.magicmacchiato.vrextensions.Features.VillagerRelationship;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.damagesource.DamageSource;
@@ -19,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin({FemaleVillagerEntity.class, MaleVillagerEntity.class})
-public class VillagerEntityMixin implements MoodHolder, RelationshipHolder {
+public class VillagerEntityMixin implements MoodHolder, RelationshipHolder, InterestHolder, TalkCooldownHolder {
     @Unique
     private final Mood mood = new Mood();
 
@@ -36,6 +39,49 @@ public class VillagerEntityMixin implements MoodHolder, RelationshipHolder {
         return this.relationship;
     }
 
+    @Unique
+    private final VillagerInterests interests = new VillagerInterests();
+
+    @Override
+    public VillagerInterests getVrInterests() {
+        return this.interests;
+    }
+
+    @Unique
+    private static final String NEXT_TALK_KEY = "vrextensions:next_talk";
+
+    @Unique
+    private static final String TALK_DAY_KEY = "vrextensions:talk_day";
+    @Unique
+    private static final String TALK_COUNT_KEY = "vrextensions:talk_count";
+
+    @Unique
+    private long nextTalk;
+    @Unique
+    private long talkDay;
+    @Unique
+    private int talkCount;
+
+    @Override
+    public int getVrTalks(long day) {
+        return day == this.talkDay ? this.talkCount : 0;
+    }
+
+    @Override
+    public void addVrTalk(long day) {
+        this.talkCount = getVrTalks(day) + 1;
+        this.talkDay = day;
+    }
+
+    @Override
+    public long getVrNextTalk() {
+        return this.nextTalk;
+    }
+
+    @Override
+    public void setVrNextTalk(long gameTime) {
+        this.nextTalk = gameTime;
+    }
 
     // Save to tag
     @Inject(
@@ -45,6 +91,10 @@ public class VillagerEntityMixin implements MoodHolder, RelationshipHolder {
     private void addAdditionalSaveData(CompoundTag tag, CallbackInfo callbackInfo) {
         this.mood.save(tag);
         this.relationship.save(tag);
+        this.interests.save(tag);
+        tag.putLong(NEXT_TALK_KEY, this.nextTalk);
+        tag.putLong(TALK_DAY_KEY, this.talkDay);
+        tag.putInt(TALK_COUNT_KEY, this.talkCount);
     }
 
     // Load to tag
@@ -55,6 +105,10 @@ public class VillagerEntityMixin implements MoodHolder, RelationshipHolder {
     private void readAdditionalSaveData(CompoundTag tag, CallbackInfo callbackInfo) {
         this.mood.load(tag);
         this.relationship.load(tag);
+        this.interests.load(tag);
+        this.nextTalk = tag.getLong(NEXT_TALK_KEY); // 0 (ready) if absent
+        this.talkDay = tag.getLong(TALK_DAY_KEY);
+        this.talkCount = tag.getInt(TALK_COUNT_KEY);
     }
 
     @Unique

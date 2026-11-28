@@ -1,15 +1,12 @@
 package com.magicmacchiato.vrextensions.Dialogue;
 
 import com.google.gson.annotations.SerializedName;
-import com.magicmacchiato.vrextensions.Utils.NamedVector;
-import com.magicmacchiato.vrextensions.Utils.Vectors;
 
+import javax.annotation.Nullable;
+
+/** Lowest mood a line needs. An axis left out of the JSON is not gated. */
 public record MinMood(
-        @SerializedName("positiveness") float positiveness,
-        @SerializedName("eagerness") float eagerness,
-        @SerializedName("security") float security
-) {
-    public NamedVector.Vector getVector() {
-        return Vectors.MOOD_VECTOR.newVector(new float[]{positiveness, eagerness, security});
-    }
-}
+        @SerializedName("positiveness") @Nullable Float positiveness,
+        @SerializedName("eagerness") @Nullable Float eagerness,
+        @SerializedName("security") @Nullable Float security
+) {}

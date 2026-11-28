@@ -4,11 +4,12 @@ import com.javic.slimpatch.dialogue.DialogueManager;
 import com.javic.slimpatch.entity.FemaleVillagerEntity;
 import com.javic.slimpatch.entity.MaleVillagerEntity;
 import com.javic.slimpatch.entity.VillagerPersonality;
-import com.magicmacchiato.vrextensions.Dialogue.DialogueNode;
-import com.magicmacchiato.vrextensions.Enums.Speaker;
+import com.magicmacchiato.vrextensions.Dialogue.Dialogue;
+import com.magicmacchiato.vrextensions.Features.DialogueHearts;
 import com.magicmacchiato.vrextensions.Features.Mood;
 import com.magicmacchiato.vrextensions.Features.MoodHolder;
 import com.magicmacchiato.vrextensions.Features.MoodSync;
+import com.magicmacchiato.vrextensions.Features.VillagerInterests;
 import com.magicmacchiato.vrextensions.Utils.ConversationManager;
 import com.magicmacchiato.vrextensions.Utils.ReactionParticles;
 import com.magicmacchiato.vrextensions.Utils.Requirements;
@@ -55,11 +56,17 @@ public record ChooseDialoguePacket(int entityId, String nodeId) implements Custo
             // The choice must be one of the options after the villager's current line.
             ConversationManager.State state = ConversationManager.get(villager.getUUID());
             if (state == null || !player.getUUID().equals(state.player())) return;
-            DialogueNode current = com.magicmacchiato.vrextensions.Utils.DialogueManager.get(state.villagerNodeId());
-            DialogueNode node = com.magicmacchiato.vrextensions.Utils.DialogueManager.get(msg.nodeId);
-            if (current == null || node == null || node.speaker() != Speaker.player
+            Dialogue current = com.magicmacchiato.vrextensions.Utils.DialogueManager.get(state.villagerNodeId());
+            Dialogue node = com.magicmacchiato.vrextensions.Utils.DialogueManager.get(msg.nodeId);
+            if (current == null || node == null
                     || !current.nextChoice().contains(node.id())) return;
             if (!Requirements.forPair(villager, player).test(node)) return;
+
+            // What the choice changes in total (after clamping) is what the hearts are updated by.
+            float moodBefore = villager instanceof MoodHolder before ? before.getVrMood().total() : 0f;
+
+            // Before the reaction, so its log and sync below include the new eagerness.
+            VillagerInterests.hear(villager, node.conversationTopics());
 
             VillagerPersonality personality = villager instanceof MaleVillagerEntity male ? male.getPersonality()
                     : villager instanceof FemaleVillagerEntity female ? female.getPersonality() : null;
@@ -71,11 +78,15 @@ public record ChooseDialoguePacket(int entityId, String nodeId) implements Custo
                 MoodSync.send(player, villager);
             }
 
-            // Mood has just changed, so evaluate the reply's requirements afterwards.
+            if (villager instanceof MoodHolder after) {
+                DialogueHearts.apply(villager, player, after.getVrMood().total() - moodBefore);
+            }
+
+            // Mood and hearts have just changed, so evaluate the reply's requirements afterwards.
             var allowed = Requirements.forPair(villager, player);
-            DialogueNode reply = com.magicmacchiato.vrextensions.Utils.DialogueManager.randomReply(node, allowed);
+            Dialogue reply = com.magicmacchiato.vrextensions.Utils.DialogueManager.randomNext(node, allowed);
             List<String> choiceIds = reply == null ? List.of()
-                    : com.magicmacchiato.vrextensions.Utils.DialogueManager.choicesOf(reply, allowed).stream().map(DialogueNode::id).toList();
+                    : com.magicmacchiato.vrextensions.Utils.DialogueManager.choicesOf(reply, allowed).stream().map(Dialogue::id).toList();
             if (!choiceIds.isEmpty()) {
                 ConversationManager.set(villager.getUUID(), player.getUUID(), reply.id());
             } else {

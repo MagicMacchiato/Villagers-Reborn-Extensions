@@ -15,8 +15,8 @@ import java.util.UUID;
 
 /**
  * What one villager (the establisher) thinks of other entities, as a {@link RelationshipStatusData} (hearts + bond flags) per target UUID. Directed: A's entry for B
- * is independent of B's entry for A. Targets can be players or villagers. Hearts are a whole number in
- * 0..{@link #MAX_HEARTS}: 0-5 is the normal range, 6-10 the golden range. Absent targets count as 0.
+ * is independent of B's entry for A. Targets can be players or villagers. Hearts are a number in
+ * 0..{@link #MAX_HEARTS} (fractions add up; requirements and statuses use whole hearts): 0-5 is the normal range, 6-10 the golden range. Absent targets count as 0.
  */
 public class VillagerRelationship {
     private static final String KEY = "vrextensions:relationship";
@@ -40,20 +40,20 @@ public class VillagerRelationship {
     }
 
     /** Hearts this villager has for the target, 0 if unknown. */
-    public int get(UUID target) {
+    public float get(UUID target) {
         RelationshipStatusData d = this.data.get(target);
         return d == null ? 0 : d.getHearts();
     }
 
     /** Sets the hearts, clamped to 0..MAX_HEARTS. An entry left with no hearts and no bonds is dropped. */
-    public void set(UUID target, int value) {
+    public void set(UUID target, float value) {
         RelationshipStatusData d = getOrCreate(target);
         d.setHearts(value);
         if (d.isEmpty()) this.data.remove(target);
     }
 
     /** Adds {@code delta} (may be negative) to the hearts, clamped. */
-    public void adjust(UUID target, int delta) {
+    public void adjust(UUID target, float delta) {
         set(target, get(target) + delta);
     }
 

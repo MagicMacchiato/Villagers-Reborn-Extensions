@@ -1,7 +1,7 @@
 package com.magicmacchiato.vrextensions.Mixins;
 
 import com.javic.slimpatch.client.gui.VillagerDialogueScreen;
-import com.magicmacchiato.vrextensions.Dialogue.DialogueNode;
+import com.magicmacchiato.vrextensions.Dialogue.Dialogue;
 import com.magicmacchiato.vrextensions.Enums.Emotion;
 import com.magicmacchiato.vrextensions.Utils.DialogueManager;
 import com.magicmacchiato.vrextensions.Features.DialogueReplyReceiver;
@@ -32,7 +32,7 @@ import static com.magicmacchiato.vrextensions.VillagersRebornExtensionsMod.LOGGE
 public abstract class VillagerDialogueScreenMixin implements DialogueReplyReceiver, MoodReceiver {
 
     /** Player choices after the villager's current line; set by the server's DialogueReplyPacket. */
-    @Unique private List<DialogueNode> vrextensions$choices;
+    @Unique private List<Dialogue> vrextensions$choices;
     @Unique private boolean vrextensions$started;
 
     @Unique private boolean vrextensions$hasMood;
@@ -53,7 +53,7 @@ public abstract class VillagerDialogueScreenMixin implements DialogueReplyReceiv
         if (vrextensions$choices == null || vrextensions$choices.isEmpty()) return;
 
         List<String> options = new ArrayList<>();
-        for (DialogueNode node : vrextensions$choices) options.add(node.text());
+        for (Dialogue node : vrextensions$choices) options.add(node.text());
         cir.setReturnValue(options);
     }
 
@@ -67,7 +67,7 @@ public abstract class VillagerDialogueScreenMixin implements DialogueReplyReceiv
     @Inject(method = "onOptionClicked", at = @At("HEAD"), cancellable = true)
     private void vrextensions$onChoiceClicked(String option, CallbackInfo ci) {
         if (vrextensions$choices == null) return;
-        for (DialogueNode node : vrextensions$choices) {
+        for (Dialogue node : vrextensions$choices) {
             if (node.text().equals(option)) {
                 // Don't send the base mod's RelationshipPacket (it would grant hearts for an unknown option).
                 vrextensions$handleChoice(node);
@@ -78,7 +78,7 @@ public abstract class VillagerDialogueScreenMixin implements DialogueReplyReceiv
     }
 
     @Unique
-    private void vrextensions$handleChoice(DialogueNode node) {
+    private void vrextensions$handleChoice(Dialogue node) {
         // The server applies the mood change and picks the reply; it answers with a DialogueReplyPacket.
         PacketDistributor.sendToServer(new ChooseDialoguePacket(villager.getId(), node.id()));
     }
@@ -86,12 +86,12 @@ public abstract class VillagerDialogueScreenMixin implements DialogueReplyReceiv
     @Override
     public void onVrReply(int entityId, String nodeId, List<String> choiceIds) {
         if (villager.getId() != entityId) return;
-        DialogueNode node = DialogueManager.get(nodeId);
+        Dialogue node = DialogueManager.get(nodeId);
         if (node != null) {
             showDialogueResult(entityId, "", true, node.text());
             vrextensions$choices = new ArrayList<>();
             for (String id : choiceIds) {
-                DialogueNode choice = DialogueManager.get(id);
+                Dialogue choice = DialogueManager.get(id);
                 if (choice != null) vrextensions$choices.add(choice);
             }
         } else {

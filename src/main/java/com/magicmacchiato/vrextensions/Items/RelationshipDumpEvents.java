@@ -69,7 +69,7 @@ public class RelationshipDumpEvents {
 
     private static String describe(RelationshipStatusData data) {
         StringBuilder sb = new StringBuilder(data.status().toString()).append(", ")
-                .append(data.getHearts()).append(" hearts");
+                .append(String.format("%.2f", data.getHearts())).append(" hearts");
         if (data.isFamily()) sb.append(", family");
         if (data.isPartner()) sb.append(", partner");
         if (data.isDating()) sb.append(", dating");

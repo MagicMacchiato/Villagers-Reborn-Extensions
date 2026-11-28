@@ -20,9 +20,9 @@ public final class ReactionParticles {
         int bursts = positive ? 7 : 4;
         for (int i = 0; i < bursts; i++) {
             level.sendParticles(type,
-                    villager.getX() + villager.getRandom().nextGaussian() * 0.3D,
+                    villager.getX() + Random.gaussian(villager.getRandom(), 0.3D),
                     villager.getY() + 1.0D,
-                    villager.getZ() + villager.getRandom().nextGaussian() * 0.3D,
+                    villager.getZ() + Random.gaussian(villager.getRandom(), 0.3D),
                     1, 0.0D, 0.0D, 0.0D, 0.0D);
         }
     }
