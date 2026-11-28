@@ -30,6 +30,7 @@ public class VillagersRebornExtensionsMod {
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.register(new com.magicmacchiato.vrextensions.Items.RelationshipDumpEvents());
         NeoForge.EVENT_BUS.register(new com.magicmacchiato.vrextensions.Features.MoodEvents());
+        NeoForge.EVENT_BUS.register(new com.magicmacchiato.vrextensions.Features.InterestEvents());
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
 

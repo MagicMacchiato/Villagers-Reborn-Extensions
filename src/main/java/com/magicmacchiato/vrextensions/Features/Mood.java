@@ -4,6 +4,7 @@ import com.javic.slimpatch.entity.VillagerPersonality;
 import com.magicmacchiato.vrextensions.Dialogue.Semantic;
 import com.magicmacchiato.vrextensions.Enums.Emotion;
 import com.magicmacchiato.vrextensions.Utils.NamedVector;
+import com.magicmacchiato.vrextensions.Utils.Random;
 import com.magicmacchiato.vrextensions.Utils.Vectors;
 import com.magicmacchiato.vrextensions.VillagersRebornExtensionsMod;
 
@@ -110,7 +111,7 @@ public class Mood {
     }
 
     /** How strongly a reaction score (about -2..2) shifts the mood. */
-    public static final float POSITIVENESSS_SCALE = 2.0f;
+    public static final float POSITIVENESSS_SCALE = 0.5f;
     /** MOCK - how strongly a reaction score shifts eagerness (wanting to keep talking). Same sign as the reaction. */
     public static final float EAGERNESS_SCALE = 1.0f;
     /** MOCK - how strongly a reaction score shifts security through conversation. Kept small: world events dominate. */
@@ -147,6 +148,11 @@ public class Mood {
     }
 
     public float getSecurity() {return this.security;}
+
+    /** Positiveness + eagerness + security. */
+    public float total() {
+        return this.positiveness + this.eagerness + this.security;
+    }
 
     public void setPositiveness(float value) {this.positiveness = value;}
 
@@ -186,7 +192,7 @@ public class Mood {
     }
 
     private static float decayAxis(float value, net.minecraft.util.RandomSource random) {
-        if (value == 0f || Float.isNaN(value) || random.nextFloat() >= DECAY_CHANCE) return value;
+        if (value == 0f || Float.isNaN(value) || !Random.chance(random, DECAY_CHANCE)) return value;
         if (Math.abs(value) <= DECAY_STEP) return 0f;
         return value > 0f ? value - DECAY_STEP : value + DECAY_STEP;
     }
@@ -200,6 +206,15 @@ public class Mood {
         this.positiveness = clamp(this.positiveness + reaction * POSITIVENESSS_SCALE);
         this.eagerness = clamp(this.eagerness + reaction * EAGERNESS_SCALE);
         this.security = clamp(this.security + reaction * CONVERSATION_SECURITY_SCALE);
+    }
+
+    /**
+     * Raises eagerness for hearing about interests: {@code matchSum * EAGERNESS_SCALE}, clamped to +-MOOD_LIMIT.
+     * Independent of how the line was received ({@link #applyReaction}).
+     */
+    public void applyInterest(float matchSum) {
+        if (Float.isNaN(matchSum)) return;
+        this.eagerness = clamp(this.eagerness + matchSum * EAGERNESS_SCALE);
     }
 
     private static float clamp(float value) {

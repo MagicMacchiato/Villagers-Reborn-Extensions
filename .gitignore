@@ -24,3 +24,5 @@ runs
 run-data
 
 repo
+# Dialogue generation scripts (local only)
+src/main/resources/python/
